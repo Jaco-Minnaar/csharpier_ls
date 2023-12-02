@@ -2,39 +2,19 @@ use std::process::Stdio;
 
 use anyhow::{anyhow, Result};
 use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},
     sync::mpsc::{self, Receiver, Sender},
 };
 
 async fn read_stdout(stdout: ChildStdout, sender: Sender<Result<String>>) -> Result<()> {
     let reader = BufReader::new(stdout);
-    // let mut total_buffer = vec![];
-    // let mut buffer = vec![];
     let mut segments = reader.split('\u{0003}' as u8);
 
     while let Some(segment) = segments.next_segment().await? {
         sender
             .send(String::from_utf8(segment).or_else(|err| Err(anyhow::anyhow!(err))))
             .await?;
-
-        // if length == 0 {
-        //     break;
-        // }
-        //
-        // if let Some(idx) = buffer.iter().position(|b| *b == '\u{0003}' as u8) {
-        //     total_buffer.extend_from_slice(&buffer[..idx]);
-        //
-        //     sender
-        //         .send(String::from_utf8(total_buffer).or_else(|err| Err(anyhow::anyhow!(err))))
-        //         .await?;
-        //
-        //     total_buffer = buffer[idx + 1..length].to_vec();
-        // } else {
-        //     total_buffer.extend_from_slice(&buffer[..length]);
-        // }
-        //
-        // buffer.clear();
     }
 
     Ok(())
@@ -82,7 +62,7 @@ impl CSharpierProcess {
         Ok(csharpier_process)
     }
 
-    pub async fn format_file(&mut self, content: &str, file_path: &str) -> Result<String> {
+    pub async fn format_file(&mut self, content: &str, file_path: &str) -> Result<Option<String>> {
         // log::debug!("Formatting {}", content);
 
         log::debug!("Format input length: {}", content.len());
@@ -96,10 +76,12 @@ impl CSharpierProcess {
         match self.output.recv().await {
             Some(Ok(output)) => {
                 log::debug!("Format output length: {}", output.len());
-                if output.len() > 0 {
-                    Ok(output)
+                let len = output.len();
+                if len == 0 || len == content.len() {
+                    log::debug!("No changes to apply");
+                    Ok(None)
                 } else {
-                    Ok(content.to_string())
+                    Ok(Some(output.to_string()))
                 }
             }
             Some(Err(err)) => Err(anyhow!("Could not format content. Err: {}", err)),

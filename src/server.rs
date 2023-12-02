@@ -73,13 +73,17 @@ impl Backend {
             .get_buffer(path)
             .ok_or(anyhow!("Could not find buffer {}", path))?;
 
-        let new_content = self
-            .process_provider
-            .get_process(path)
-            .await?
-            .format_file(current_content, path)
-            .await?;
+        let process = self.process_provider.get_process(path).await?;
 
+        let Some(new_content) = process.format_file(current_content, path).await? else {
+            log::debug!("No changes to apply");
+            return Ok(None);
+        };
+
+        log::debug!(
+            "Sending new changes to apply. Content length: {}",
+            new_content.len()
+        );
         Ok(Some(vec![TextEdit::new(
             Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
             new_content,
