@@ -63,13 +63,12 @@ impl CSharpierProcess {
     }
 
     pub async fn format_file(&mut self, content: &str, file_path: &str) -> Result<Option<String>> {
-        // log::debug!("Formatting {}", content);
-
         log::debug!("Format input length: {}", content.len());
-        let input = format!("{file_path}\u{0003}{content}\u{0003}");
+
+        let to_write = format!("{}\u{0003}{}\u{0003}", file_path, content);
 
         self.stdin
-            .write(input.as_bytes())
+            .write_all(to_write.as_bytes())
             .await
             .expect("Could not write to Stdin");
 
@@ -87,5 +86,30 @@ impl CSharpierProcess {
             Some(Err(err)) => Err(anyhow!("Could not format content. Err: {}", err)),
             None => Err(anyhow!("Could not format content. Empty response")),
         }
+    }
+}
+
+// tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[tokio::test]
+    async fn test_format_file() {
+        let mut test_dir = PathBuf::new();
+        test_dir.push("./data");
+        let mut process = CSharpierProcess::spawn(test_dir.to_str().unwrap())
+            .await
+            .unwrap();
+
+        let input = "public class ClassName { }";
+        let output = process
+            .format_file(input, "Text.cs")
+            .await
+            .expect("Could not format file");
+
+        assert!(output.is_some());
+        assert_eq!(output.unwrap(), "public class ClassName { }\n");
     }
 }
