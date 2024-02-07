@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use tokio::sync::RwLock;
 use tower_lsp::{
-    jsonrpc::Result,
+    jsonrpc::{Error, Result},
     lsp_types::{
         DidChangeTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingOptions,
         InitializeParams, InitializeResult, InitializedParams, MessageType, OneOf, Position, Range,
@@ -158,7 +158,13 @@ impl LanguageServer for CSharpierLanguageServer {
             .await
             .will_save_wait_until(params)
             .await
-            .expect("err while performing will_save_wait_until action"))
+            .or_else(|err| {
+                log::error!(
+                    "Error while performing will_save_wait_until action: {}",
+                    err
+                );
+                Err(Error::internal_error())
+            })?)
     }
 
     async fn shutdown(&self) -> Result<()> {
