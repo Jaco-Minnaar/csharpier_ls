@@ -29,7 +29,8 @@ pub struct CSharpierProcess {
 
 impl CSharpierProcess {
     pub async fn spawn(working_dir: &str) -> Result<Self> {
-        let mut process = Command::new("dotnet-csharpier")
+        let mut process = Command::new("dotnet")
+            .arg("csharpier")
             .arg("--pipe-multiple-files")
             .current_dir(working_dir)
             .stdin(Stdio::piped())
